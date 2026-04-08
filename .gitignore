@@ -1,3 +1,8 @@
 node_modules/
 .env
 package-lock.json
+
+# GCP service account keys
+*-key.json
+*-credentials.json
+gcp-sa-key.json
