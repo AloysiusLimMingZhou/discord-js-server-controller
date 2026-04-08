@@ -26,32 +26,22 @@ jobs:
       # 4. Connect and Deploy using gcloud compute ssh
       - name: 'SSH and Deploy Bot'
         run: |
-          # Gcloud connects using the authenticated Service Account.
           gcloud compute ssh '${{ secrets.GCP_VM_NAME }}' \
             --zone='${{ secrets.GCP_ZONE }}' \
             --project='${{ secrets.GCP_PROJECT_ID }}' \
             --command='
-              # START Deployment Script on your VM
-              
-              # 1. Go to your bot folder
-              cd /home/foowengwai3/discord-js-server-controller
+              export PATH="$PATH:/usr/local/bin:$HOME/.nvm/versions/node/*/bin"
+              export NVM_DIR="$HOME/.nvm"
+              [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
 
-              # Mark the directory as safe for git operations
-              sudo git config --global --add safe.directory /home/foowengwai3/discord-js-server-controller
-              
-              # 2. Fetch the latest code
-              sudo git fetch origin
-              
-              # 3. Reset local code to match remote
-              # This ensures a clean copy, overriding any local changes
-              sudo git reset --hard origin/main
-              
-              # 4. Install new libraries (if any)
-              sudo npm install
-              
-              # 5. Deploy slash commands to Discord
-              sudo npm run deploy-commands
-              
-              # 6. Restart the bot process
-              sudo systemctl restart discord-bot
+              cd ${{ secrets.DEPLOY_PATH }}
+
+              git config --global --add safe.directory ${{ secrets.DEPLOY_PATH }}
+              git fetch origin
+              git reset --hard origin/main
+
+              npm install
+              npm run deploy-commands
+
+              sudo systemctl restart ${{ secrets.SERVICE_NAME }}
             '
