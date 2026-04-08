@@ -37,4 +37,9 @@ module.exports = {
   express: {
     port: parseInt(process.env.EXPRESS_PORT, 10) || 3000,
   },
+  monitoring: {
+    cpuThreshold: parseInt(process.env.MONITOR_CPU_THRESHOLD, 10) || 80,           // %
+    gpuThreshold: parseInt(process.env.MONITOR_GPU_THRESHOLD, 10) || 80,           // %
+    alertCooldown: parseInt(process.env.MONITOR_ALERT_COOLDOWN, 10) || 300000,     // ms (5 min)
+  },
 };

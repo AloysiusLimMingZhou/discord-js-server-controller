@@ -59,6 +59,13 @@ client.on('interactionCreate', async (interaction) => {
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
 
+      // Notify the notifications channel that the server is starting
+      await sendNotification({
+        title: '🚀  G2 Server Starting',
+        description: `**${interaction.user.tag}** initiated a start request via Discord.\nThe G2 ML training server is **booting up**. Please wait…`,
+        color: 0x2979ff,
+      });
+
       const msg = await startVM();
 
       const doneEmbed = new EmbedBuilder()
@@ -67,6 +74,13 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(0x00c853)
         .setTimestamp();
       await interaction.followUp({ embeds: [doneEmbed] });
+
+      // Notify the notifications channel that the server has started
+      await sendNotification({
+        title: '✅  G2 Server Started',
+        description: `The G2 ML training server is now **running** and ready to accept connections.\nStarted by **${interaction.user.tag}** via Discord.`,
+        color: 0x00c853,
+      });
     } catch (err) {
       console.error(err);
       await interaction.followUp(`❌  Failed to start VM: ${err.message}`);
@@ -84,6 +98,13 @@ client.on('interactionCreate', async (interaction) => {
         .setTimestamp();
       await interaction.editReply({ embeds: [embed] });
 
+      // Notify the notifications channel that the server is stopping
+      await sendNotification({
+        title: '🛑  G2 Server Stopping',
+        description: `**${interaction.user.tag}** initiated a stop request via Discord.\nThe G2 ML training server is **shutting down**.`,
+        color: 0xff6d00,
+      });
+
       const msg = await stopVM();
 
       const doneEmbed = new EmbedBuilder()
@@ -92,6 +113,13 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(0xd50000)
         .setTimestamp();
       await interaction.followUp({ embeds: [doneEmbed] });
+
+      // Notify the notifications channel that the server has stopped
+      await sendNotification({
+        title: '⛔  G2 Server Stopped',
+        description: `The G2 ML training server has been **stopped**.\nStopped by **${interaction.user.tag}** via Discord.`,
+        color: 0xd50000,
+      });
     } catch (err) {
       console.error(err);
       await interaction.followUp(`❌  Failed to stop VM: ${err.message}`);
@@ -104,8 +132,10 @@ client.once('ready', () => {
 });
 
 /**
- * Send a rich-embed notification to the configured channel.
- * Used by the Express server.
+ * Send a rich-embed notification to the configured notifications channel.
+ * Used by:
+ *  - Slash command handlers (when a user starts/stops the VM via Discord)
+ *  - Express endpoints (when the G2 server pushes lifecycle/metric events)
  */
 async function sendNotification({ title, description, color = 0x607d8b }) {
   const channel = await client.channels.fetch(config.discord.channelId);

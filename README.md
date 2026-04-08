@@ -1,6 +1,6 @@
 # Discord Bot — GCP VM Controller
 
-A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you **start**, **stop**, and **check the status** of a Google Cloud Compute Engine VM instance via slash commands. It also runs an [Express v5](https://expressjs.com/) webhook server to push real-time VM lifecycle notifications into a Discord channel.
+A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you **start**, **stop**, and **check the status** of a Google Cloud Compute Engine G2 VM instance via slash commands. The bot runs on an **EC2 instance** and receives **push-based notifications** from the **G2 ML training server** via Express endpoints — posting real-time lifecycle events and CPU/GPU utilization alerts to a dedicated Discord notifications channel.
 
 ---
 
@@ -22,11 +22,15 @@ A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you
 - [Express Notification API](#express-notification-api)
   - [Endpoints](#endpoints)
   - [Example Requests](#example-requests)
+- [Monitoring & Alerting](#monitoring--alerting)
+  - [How It Works](#how-it-works)
+  - [CPU / GPU Utilization Alerts](#cpu--gpu-utilization-alerts)
+  - [Monitoring API Endpoints](#monitoring-api-endpoints)
+  - [Monitoring Example Requests](#monitoring-example-requests)
 - [CI/CD — GitHub Actions](#cicd--github-actions)
 - [Running as a systemd Service](#running-as-a-systemd-service)
 - [Troubleshooting](#troubleshooting)
 - [Tech Stack](#tech-stack)
-- [License](#license)
 
 ---
 
@@ -34,15 +38,18 @@ A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you
 
 | Category | Details |
 |---|---|
-| **VM Control** | Start, stop, and check status of a GCP Compute Engine VM directly from Discord |
+| **VM Control** | Start, stop, and check status of the G2 GCP VM directly from Discord |
+| **Push-Based Notifications** | G2 server pushes lifecycle events (started/stopped/starting/stopping) to the bot |
+| **Slash Command Notifications** | `/vm-start` and `/vm-stop` also post to the notifications channel (with who triggered it) |
+| **CPU/GPU Alerting** | G2 server pushes utilization metrics; bot alerts on configurable thresholds |
 | **Rich Embeds** | Colour-coded status embeds (🟢 Running, 🔴 Stopped, 🟠 Stopping/Staging, 🔵 Provisioning) |
 | **Status Details** | Displays instance name, status, machine type, zone, and external IP |
-| **Webhook Notifications** | Express REST API sends real-time VM lifecycle events to a Discord channel |
 | **Custom Events** | Generic `/notify/event` endpoint for arbitrary notifications |
 | **Health Check** | `GET /health` endpoint for uptime and liveness monitoring |
+| **Monitoring API** | REST endpoints to report CPU/GPU metrics and check monitoring status |
 | **Env Validation** | Startup-time validation of all required environment variables with clear error messages |
-| **GCP SA Key Support** | Optional `SA_KEY` env var auto-maps to `GOOGLE_APPLICATION_CREDENTIALS` |
-| **CI/CD** | GitHub Actions workflow for automated deployment to a GCP VM via SSH |
+| **GCP SA Key Support** | `SA_KEY` env var auto-maps to `GOOGLE_APPLICATION_CREDENTIALS` |
+| **CI/CD** | GitHub Actions workflow for automated deployment via SSH |
 | **Launch Script** | `start.sh` with pre-flight checks, dependency install, and multiple run modes |
 
 ---
@@ -50,33 +57,53 @@ A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you
 ## Architecture
 
 ```
-┌─────────────────────────┐        ┌──────────────────────┐
-│   Discord User          │        │  External Service    │
-│   (slash commands)      │        │  (e.g. cron, script) │
-└────────┬────────────────┘        └──────────┬───────────┘
-         │ /vm-start, /vm-stop,               │ POST /notify/*
-         │ /vm-status                         │
-         ▼                                    ▼
-┌─────────────────────────────────────────────────────────┐
-│                   Node.js Process                       │
-│  ┌─────────────────────┐   ┌──────────────────────────┐ │
-│  │  Discord.js Client  │   │   Express Server (:3000) │ │
-│  │  (bot/bot.js)       │◄──│   (server/server.js)     │ │
-│  └────────┬────────────┘   └──────────────────────────┘ │
-│           │  sendNotification()                         │
-│           ▼                                             │
-│  ┌─────────────────────┐                                │
-│  │  VM Service          │                               │
-│  │  (services/          │                               │
-│  │   vmService.js)      │                               │
-│  └────────┬─────────────┘                               │
-└───────────┼─────────────────────────────────────────────┘
-            │ @google-cloud/compute
-            ▼
-   ┌────────────────────┐
-   │  Google Cloud       │
-   │  Compute Engine API │
-   └────────────────────┘
+                    ┌──────────────────────────────────────────────┐
+                    │           G2 Server (GCP)                    │
+                    │           ML Training VM                     │
+                    │                                              │
+                    │  ┌──────────────────────────────────┐       │
+                    │  │  GCP startup/shutdown scripts     │       │
+                    │  │  → POST /notify/started           │       │
+                    │  │  → POST /notify/stopping          │       │
+                    │  └──────────────────────────────────┘       │
+                    │  ┌──────────────────────────────────┐       │
+                    │  │  cron: report-cpu.sh              │       │
+                    │  │  → POST /monitor/cpu              │       │
+                    │  │  cron: report-gpu.sh              │       │
+                    │  │  → POST /monitor/gpu              │       │
+                    │  └──────────────────────────────────┘       │
+                    └──────────────┬───────────────────────────────┘
+                                  │ HTTP push events
+                                  ▼
+┌─────────────────┐   ┌───────────────────────────────────────────┐
+│  Discord User   │   │        EC2 Instance (AWS)                 │
+│  /vm-start      │   │        Hosts the Discord Bot              │
+│  /vm-stop       │   │                                           │
+│  /vm-status     │   │  ┌───────────────────┐  ┌──────────────┐  │
+└────────┬────────┘   │  │ Discord.js Client │  │ Express :3000│  │
+         │            │  │ (bot/bot.js)      │◄─│ /notify/*    │  │
+         └───────────►│  │                   │  │ /monitor/*   │  │
+                      │  └──────┬────────────┘  └──────────────┘  │
+                      │         │ sendNotification()              │
+                      │         ▼                                 │
+                      │  ┌───────────────────┐  ┌──────────────┐  │
+                      │  │ VM Service        │  │ Monitoring   │  │
+                      │  │ (vmService.js)    │  │ Service      │  │
+                      │  │ start/stop/status │  │ CPU/GPU      │  │
+                      │  └──────┬────────────┘  │ alerts       │  │
+                      │         │               └──────────────┘  │
+                      └─────────┼──────────────────────────────────┘
+                                │ @google-cloud/compute
+                                ▼
+                       ┌────────────────────┐
+                       │  Google Cloud       │
+                       │  Compute Engine API │
+                       └────────────────────┘
+
+                                ▼ Notifications go to ▼
+                       ┌────────────────────────────────┐
+                       │  Discord #notifications channel │
+                       └────────────────────────────────┘
 ```
 
 ---
@@ -94,16 +121,17 @@ discordjs/
 ├── package.json                 # npm config, scripts, and dependencies
 ├── README.md                    # This file
 └── src/
-    ├── index.js                 # Entry point — boots Discord bot + Express server
+    ├── index.js                 # Entry point — boots bot + Express server
     ├── config.js                # Loads .env, validates required vars, exports config
     ├── bot/
-    │   ├── bot.js               # Discord client, interaction handler, embed builder
+    │   ├── bot.js               # Discord client, interaction handler, notifications
     │   ├── commands.js          # Slash command definitions (/vm-start, /vm-stop, /vm-status)
     │   └── deploy-commands.js   # One-time script to register commands with Discord API
     ├── server/
-    │   └── server.js            # Express app — notification webhook endpoints
+    │   └── server.js            # Express app — receives push events from G2 server
     └── services/
-        └── vmService.js         # GCP Compute Engine SDK wrapper (start/stop/status)
+        ├── vmService.js         # GCP Compute Engine SDK wrapper (start/stop/status)
+        └── monitoringService.js # CPU/GPU threshold alerting (push-based)
 ```
 
 ---
@@ -160,12 +188,15 @@ Edit `.env` and fill in every value:
 | `DISCORD_TOKEN` | ✅ | Bot token from step 2 |
 | `DISCORD_CLIENT_ID` | ✅ | Application (Client) ID |
 | `DISCORD_GUILD_ID` | ✅ | Server (guild) where commands are registered |
-| `DISCORD_CHANNEL_ID` | ✅ | Channel where notification embeds are posted |
-| `GCP_PROJECT_ID` | ✅ | Your Google Cloud project ID |
-| `GCP_ZONE` | ✅ | Zone of the VM (e.g. `us-central1-a`) |
-| `GCP_INSTANCE_NAME` | ✅ | Name of the Compute Engine VM instance |
+| `DISCORD_CHANNEL_ID` | ✅ | **Notifications channel** ID where all alerts and lifecycle events are posted |
+| `GCP_PROJECT_ID` | ✅ | Your Google Cloud project ID (for the G2 server) |
+| `GCP_ZONE` | ✅ | Zone of the G2 VM (e.g. `asia-southeast1-c`) |
+| `GCP_INSTANCE_NAME` | ✅ | Name of the G2 Compute Engine VM instance |
 | `SA_KEY` | ✅ | Path to a GCP service account key JSON file |
 | `EXPRESS_PORT` | ✅ | Port for the Express server (default: `3000`) |
+| `MONITOR_CPU_THRESHOLD` | ❌ | CPU % to trigger alert (default: `80`) |
+| `MONITOR_GPU_THRESHOLD` | ❌ | GPU % to trigger alert (default: `80`) |
+| `MONITOR_ALERT_COOLDOWN` | ❌ | Cooldown between repeated alerts in ms (default: `300000` = 5 min) |
 
 ### 4. GCP Authentication
 
@@ -209,6 +240,7 @@ Expected output:
 ```
 🤖  Discord bot logged in as YourBot#1234
 🌐  Express server listening on port 3000
+📡  Waiting for events from G2 server…
 ```
 
 ---
@@ -242,13 +274,13 @@ chmod +x start.sh
 
 ## Discord Slash Commands
 
-All three commands use deferred replies and colour-coded rich embeds.
+All three commands use deferred replies and colour-coded rich embeds. `/vm-start` and `/vm-stop` also post notifications to the **#notifications** channel (including who triggered the action).
 
-| Command | Description | Embed Colour |
-|---|---|---|
-| `/vm-start` | Sends a start request to GCP, waits for the operation to complete, then confirms | 🔵 → 🟢 |
-| `/vm-stop` | Sends a stop request to GCP, waits for the operation to complete, then confirms | 🟠 → 🔴 |
-| `/vm-status` | Queries GCP and displays current status, name, machine type, zone, and external IP | Status-dependent |
+| Command | Description | Embed Colour | Notifies Channel? |
+|---|---|---|---|
+| `/vm-start` | Starts the G2 server, waits for completion, confirms | 🔵 → 🟢 | ✅ Starting + Started |
+| `/vm-stop` | Stops the G2 server, waits for completion, confirms | 🟠 → 🔴 | ✅ Stopping + Stopped |
+| `/vm-status` | Queries GCP and displays current status, name, machine type, zone, external IP | Status-dependent | ❌ |
 
 ### Status Colour Map
 
@@ -267,47 +299,169 @@ All three commands use deferred replies and colour-coded rich embeds.
 
 ## Express Notification API
 
-The built-in Express server (default port `3000`) provides webhook endpoints so external services (cron jobs, startup scripts, monitoring) can push VM lifecycle notifications into your Discord channel as rich embeds.
+The Express server (default port `3000`) receives push events from the G2 ML training server and posts them to the Discord **#notifications** channel as rich embeds.
 
 ### Endpoints
 
 | Method | Path | Request Body | Embed Title | Embed Colour |
 |---|---|---|---|---|
 | `GET` | `/health` | — | _(returns JSON: `{ status, uptime }`)_ | — |
-| `POST` | `/notify/started` | — | ✅  Server Started | 🟢 `#00C853` |
-| `POST` | `/notify/stopped` | — | ⛔  Server Stopped | 🔴 `#D50000` |
-| `POST` | `/notify/stopping` | — | 🛑  Server Stopping | 🟠 `#FF6D00` |
-| `POST` | `/notify/starting` | — | 🚀  Server Starting | 🔵 `#2979FF` |
+| `POST` | `/notify/started` | — | ✅  G2 Server Started | 🟢 `#00C853` |
+| `POST` | `/notify/stopped` | — | ⛔  G2 Server Stopped | 🔴 `#D50000` |
+| `POST` | `/notify/stopping` | — | 🛑  G2 Server Stopping | 🟠 `#FF6D00` |
+| `POST` | `/notify/starting` | — | 🚀  G2 Server Starting | 🔵 `#2979FF` |
 | `POST` | `/notify/event` | `{ title, description, color? }` | _(custom)_ | _(custom or default grey)_ |
 
 ### Example Requests
 
-**Health check:**
+These would be called **from the G2 server** targeting the EC2 bot's IP:
 
 ```bash
-curl http://localhost:3000/health
-# → { "status": "ok", "uptime": 143.27 }
-```
+BOT_HOST="<ec2-ip-or-hostname>:3000"
 
-**Trigger a lifecycle notification:**
+# Health check
+curl http://$BOT_HOST/health
 
-```bash
-# Server started
-curl -X POST http://localhost:3000/notify/started
+# Lifecycle events
+curl -X POST http://$BOT_HOST/notify/started
+curl -X POST http://$BOT_HOST/notify/stopping
 
-# Server stopping
-curl -X POST http://localhost:3000/notify/stopping
-```
-
-**Send a custom event:**
-
-```bash
-curl -X POST http://localhost:3000/notify/event \
+# Custom event
+curl -X POST http://$BOT_HOST/notify/event \
   -H "Content-Type: application/json" \
-  -d '{"title": "Backup Complete", "description": "Daily backup finished successfully.", "color": 65280}'
+  -d '{"title": "Training Complete", "description": "Model v2.1 finished training in 4h 23m.", "color": 65280}'
 ```
 
-> **Tip:** You can call these endpoints from VM startup/shutdown scripts to get automatic Discord notifications when the VM boots or shuts down.
+---
+
+## Monitoring & Alerting
+
+The bot receives **push-based metrics** from the G2 server and alerts the Discord #notifications channel when thresholds are exceeded.
+
+### How It Works
+
+The G2 ML training server sends lifecycle events and resource metrics to the bot's Express API over HTTP. The bot evaluates thresholds and posts alerts to Discord. No polling is involved — the flow is fully event-driven.
+
+| Event Source | How it reaches the bot | Notification |
+|---|---|---|
+| User runs `/vm-start` or `/vm-stop` | Slash command handler in `bot.js` | Posts starting/started or stopping/stopped to #notifications |
+| G2 boots (GCP startup script) | `POST /notify/started` to EC2 bot | "G2 Server Started" embed |
+| G2 shuts down (GCP shutdown script) | `POST /notify/stopping` to EC2 bot | "G2 Server Stopping" embed |
+| G2 starts via GCP Console / `gcloud` | GCP startup script fires automatically | "G2 Server Started" embed |
+| CPU is high (cron on G2) | `POST /monitor/cpu` to EC2 bot | "High CPU Utilization" alert |
+| GPU is high (cron on G2) | `POST /monitor/gpu` to EC2 bot | "High GPU Utilization" alert |
+
+### CPU / GPU Utilization Alerts
+
+Scripts on the G2 server periodically push CPU and GPU utilization percentages to the bot. When a reported value exceeds the configured threshold, a Discord alert is fired.
+
+| Condition | Embed Colour |
+|---|---|
+| Utilization ≥ threshold but < 95% | 🟠 Orange (`#FF6D00`) |
+| Utilization ≥ 95% | 🔴 Red (`#D50000`) |
+
+Alerts respect a **cooldown window** (default: 5 minutes) to prevent notification spam.
+
+### Monitoring API Endpoints
+
+| Method | Path | Request Body | Description |
+|---|---|---|---|
+| `POST` | `/monitor/cpu` | `{ "utilization": 85.5 }` | Report CPU usage; triggers alert if above threshold |
+| `POST` | `/monitor/gpu` | `{ "utilization": 92.1, "gpuName?": "nvidia-l4" }` | Report GPU usage; triggers alert if above threshold |
+| `GET` | `/monitor/status` | — | Returns thresholds, cooldown config, and last alert times |
+
+### Monitoring Example Requests
+
+All examples below are run **from the G2 server**, targeting the EC2 bot:
+
+```bash
+BOT_HOST="<ec2-ip-or-hostname>:3000"
+```
+
+**Report CPU utilization:**
+
+```bash
+curl -X POST http://$BOT_HOST/monitor/cpu \
+  -H "Content-Type: application/json" \
+  -d '{"utilization": 87.3}'
+# → { "success": true, "alerted": true, "utilization": 87.3, "threshold": 80 }
+```
+
+**Report GPU utilization:**
+
+```bash
+curl -X POST http://$BOT_HOST/monitor/gpu \
+  -H "Content-Type: application/json" \
+  -d '{"utilization": 95.8, "gpuName": "nvidia-l4"}'
+# → { "success": true, "alerted": true, "utilization": 95.8, "threshold": 80 }
+```
+
+**Check monitoring status:**
+
+```bash
+curl http://$BOT_HOST/monitor/status
+```
+
+### Setting Up the G2 Server to Push Events
+
+#### 1. GCP Startup / Shutdown Scripts (VM metadata)
+
+These run automatically whenever the G2 server starts or stops — even when triggered from the GCP Console or `gcloud` CLI.
+
+```bash
+# Set the bot's EC2 address
+BOT_HOST="<ec2-ip-or-hostname>:3000"
+
+# Add startup script
+gcloud compute instances add-metadata <G2_INSTANCE_NAME> \
+  --zone=<ZONE> \
+  --metadata startup-script="#!/bin/bash
+curl -s -X POST http://${BOT_HOST}/notify/started"
+
+# Add shutdown script
+gcloud compute instances add-metadata <G2_INSTANCE_NAME> \
+  --zone=<ZONE> \
+  --metadata shutdown-script="#!/bin/bash
+curl -s -X POST http://${BOT_HOST}/notify/stopping"
+```
+
+#### 2. CPU Monitoring (cron on G2)
+
+Create `/opt/scripts/report-cpu.sh` on the G2 server:
+
+```bash
+#!/bin/bash
+BOT_HOST="<ec2-ip-or-hostname>:3000"
+CPU=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'.' -f1)
+curl -s -X POST http://$BOT_HOST/monitor/cpu \
+  -H "Content-Type: application/json" \
+  -d "{\"utilization\": $CPU}"
+```
+
+```bash
+chmod +x /opt/scripts/report-cpu.sh
+# Add to crontab (every minute):
+(crontab -l; echo "* * * * * /opt/scripts/report-cpu.sh") | crontab -
+```
+
+#### 3. GPU Monitoring with `nvidia-smi` (cron on G2)
+
+Create `/opt/scripts/report-gpu.sh` on the G2 server:
+
+```bash
+#!/bin/bash
+BOT_HOST="<ec2-ip-or-hostname>:3000"
+GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1 | tr -d ' ')
+GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
+curl -s -X POST http://$BOT_HOST/monitor/gpu \
+  -H "Content-Type: application/json" \
+  -d "{\"utilization\": $GPU_UTIL, \"gpuName\": \"$GPU_NAME\"}"
+```
+
+```bash
+chmod +x /opt/scripts/report-gpu.sh
+(crontab -l; echo "* * * * * /opt/scripts/report-gpu.sh") | crontab -
+```
 
 ---
 
@@ -388,6 +542,9 @@ sudo journalctl -u discord-vm-bot -f
 | `Permission 'compute.instances.start' denied` | SA lacks Compute Admin role | Grant `roles/compute.instanceAdmin.v1` to the service account |
 | Notifications not posting | Wrong `DISCORD_CHANNEL_ID` | Ensure the channel ID is correct and the bot has send-message access |
 | `EADDRINUSE: address already in use` | Port conflict | Change `EXPRESS_PORT` in `.env` or kill the conflicting process |
+| CPU/GPU alerts not firing | Utilization below threshold or cooldown active | Check thresholds in `.env`; lower `MONITOR_ALERT_COOLDOWN` for testing |
+| G2 events not reaching bot | Network / firewall issue | Ensure EC2 security group allows inbound on `EXPRESS_PORT` from G2's IP |
+| G2 started but no notification | Startup script not set | Set GCP instance metadata `startup-script` (see [G2 setup](#setting-up-the-g2-server-to-push-events)) |
 
 ---
 
