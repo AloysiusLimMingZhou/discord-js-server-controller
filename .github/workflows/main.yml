@@ -33,12 +33,18 @@ jobs:
             --command='
               # START Deployment Script on your VM
               # Debug only
-              whoami
+              echo "whoami: $(whoami)"
+              echo "where: ${{ secrets.DEPLOY_PATH }}"
+              echo "bot: ${{ secrets.SERVICE_NAME }}"
+              echo "vm: ${{ secrets.GCP_VM_NAME }}"
+              echo "zone: ${{ secrets.GCP_ZONE }}"
+              echo "proj: ${{ secrets.GCP_PROJECT_ID }}"
+
               
               export PATH="$PATH:/usr/local/bin:$HOME/.nvm/versions/node/*/bin"
               export NVM_DIR="$HOME/.nvm"
               [ -s "$NVM_DIR/nvm.sh" ] && . "$NVM_DIR/nvm.sh"
-              
+
               # 1. Go to your bot folder
               cd ${{ secrets.DEPLOY_PATH }}
 
