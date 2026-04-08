@@ -17,6 +17,11 @@ for (const key of required) {
   }
 }
 
+// Set GOOGLE_APPLICATION_CREDENTIALS from SA_KEY if provided
+if (process.env.SA_KEY) {
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = process.env.SA_KEY;
+}
+
 module.exports = {
   discord: {
     token: process.env.DISCORD_TOKEN,
