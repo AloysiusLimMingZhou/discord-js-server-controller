@@ -1,0 +1,26 @@
+[Unit]
+Description=GCP Spot VM Preemption Watcher — Target VM (AI server)
+Documentation=https://cloud.google.com/compute/docs/instances/spot#preemption
+# Start after the network is fully up so we can reach both the metadata
+# server and the bot VM's Express endpoint.
+After=network-online.target
+Wants=network-online.target
+# Restart automatically in case of unexpected crashes.
+# If the target VM (AI server) is truly being preempted the process exits 0
+# and systemd will NOT restart it (that's fine — the VM is dead anyway).
+
+[Service]
+Type=simple
+# ── URL of the bot VM's Express server ────────────────────────────────
+Environment="BOT_URL=http://BOT_VM_IP:3000"
+# ──────────────────────────────────────────────────────────────────────
+ExecStart=/opt/vm-scripts/preemption-watcher.sh
+Restart=on-failure
+RestartSec=10s
+StandardOutput=journal
+StandardError=journal
+# Give the script time to send the notification before systemd kills it.
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

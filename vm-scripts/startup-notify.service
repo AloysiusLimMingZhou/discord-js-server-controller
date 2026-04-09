@@ -1,0 +1,18 @@
+[Unit]
+Description=Notify bot VM that the target VM (AI server) has started
+After=network-online.target
+Wants=network-online.target
+# Runs only once per boot — not a daemon.
+
+[Service]
+Type=oneshot
+# ── URL of the bot VM's Express server ────────────────────────────────
+Environment="BOT_URL=http://BOT_VM_IP:3000"
+# ──────────────────────────────────────────────────────────────────────
+ExecStart=/opt/vm-scripts/startup-notify.sh
+StandardOutput=journal
+StandardError=journal
+RemainAfterExit=no
+
+[Install]
+WantedBy=multi-user.target
