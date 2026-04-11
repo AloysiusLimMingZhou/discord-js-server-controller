@@ -29,16 +29,23 @@ client.on('interactionCreate', async (interaction) => {
     await interaction.deferReply();
     try {
       const info = await getVMStatus();
+      const fields = [
+        { name: 'Name', value: info.name, inline: true },
+        { name: 'Status', value: info.status, inline: true },
+        { name: 'Machine Type', value: info.machineType, inline: true },
+        { name: 'Zone', value: info.zone, inline: true },
+        { name: 'External IP', value: info.externalIp, inline: true },
+      ];
+
+      if (info.status === 'RUNNING' && info.lastStartTimestamp) {
+        const uptimeMs = Date.now() - new Date(info.lastStartTimestamp).getTime();
+        fields.push({ name: 'Uptime', value: formatDuration(uptimeMs), inline: true });
+      }
+
       const embed = new EmbedBuilder()
         .setTitle('📊  VM Status')
         .setColor(STATUS_COLORS[info.status] ?? 0x607d8b)
-        .addFields(
-          { name: 'Name', value: info.name, inline: true },
-          { name: 'Status', value: info.status, inline: true },
-          { name: 'Machine Type', value: info.machineType, inline: true },
-          { name: 'Zone', value: info.zone, inline: true },
-          { name: 'External IP', value: info.externalIp, inline: true },
-        )
+        .addFields(fields)
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
@@ -126,6 +133,26 @@ client.on('interactionCreate', async (interaction) => {
     }
   }
 });
+
+/**
+ * Format milliseconds into a human-readable duration (e.g., 2h 15m).
+ * @param {number} ms Duration in milliseconds.
+ * @returns {string} Formatted duration.
+ */
+function formatDuration(ms) {
+  const seconds = Math.floor((ms / 1000) % 60);
+  const minutes = Math.floor((ms / (1000 * 60)) % 60);
+  const hours = Math.floor((ms / (1000 * 60 * 60)) % 24);
+  const days = Math.floor(ms / (1000 * 60 * 60 * 24));
+
+  const parts = [];
+  if (days > 0) parts.push(`${days}d`);
+  if (hours > 0) parts.push(`${hours}h`);
+  if (minutes > 0) parts.push(`${minutes}m`);
+  if (parts.length === 0) parts.push(`${seconds}s`);
+
+  return parts.join(' ');
+}
 
 client.once('ready', () => {
   console.log(`🤖  Discord bot logged in as ${client.user.tag}`);

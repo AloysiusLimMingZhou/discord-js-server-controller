@@ -75,6 +75,7 @@ async function getVMStatus() {
     zone: config.gcp.zone,
     externalIp,
     creationTimestamp: instance.creationTimestamp,
+    lastStartTimestamp: instance.lastStartTimestamp,
   };
 }
 
