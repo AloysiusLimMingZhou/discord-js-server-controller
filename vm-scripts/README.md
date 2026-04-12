@@ -49,7 +49,7 @@ This endpoint only changes to `TERMINATE` for **GCP-initiated** preemptions. The
 
 ## Requirements
 
-- The **target VM (AI server)** must be able to reach the **bot VM** over the network (TCP on the Express port, default `3000`).
+- The **target VM (AI server)** must be able to reach the **bot VM** over the network (TCP on the Express port, default `80` or `443` via reverse proxy).
 - `curl` must be installed on the target VM (AI server) — present on all standard GCP images.
 
 ## Setup
@@ -76,7 +76,7 @@ gcloud compute ssh TARGET_VM_NAME --zone YOUR_ZONE
 
 # Inside the target VM (AI server):
 cd ~/vm-scripts
-sudo bash install.sh --bot-url http://BOT_VM_IP:3000
+sudo bash install.sh --bot-url http://naic-bot.chocorot.net
 ```
 
 That's it. The installer will:
@@ -118,7 +118,7 @@ sudo systemctl status shutdown-notify
 **Watcher exits immediately on start**
 Check that `BOT_URL` in the service file points to the correct bot VM address. Test reachability from the target VM (AI server):
 ```bash
-curl -X POST http://BOT_VM_IP:3000/notify/event \
+curl -X POST http://naic-bot.chocorot.net/notify/event \
   -H "Content-Type: application/json" \
   -d '{"title":"Test","description":"reachability test from target VM"}'
 ```
@@ -146,7 +146,7 @@ sudo systemctl start shutdown-notify
 **Manually test the preemption notification**
 (Does not actually preempt the target VM — only sends the HTTP request to the bot VM.)
 ```bash
-curl -X POST http://BOT_VM_IP:3000/notify/stopping \
+curl -X POST http://naic-bot.chocorot.net/notify/stopping \
   -H "Content-Type: application/json" \
   -d '{}'
 ```

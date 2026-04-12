@@ -11,7 +11,7 @@
 
 set -euo pipefail
 
-BOT_URL="${BOT_URL:-http://BOT_VM_IP:3000}"
+BOT_URL="${BOT_URL:-http://naic-bot.chocorot.net}"
 
 log() { echo "[$(date -u '+%Y-%m-%dT%H:%M:%SZ')] $*"; }
 

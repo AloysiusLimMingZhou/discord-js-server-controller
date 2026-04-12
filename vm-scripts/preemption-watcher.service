@@ -12,7 +12,7 @@ Wants=network-online.target
 [Service]
 Type=simple
 # ── URL of the bot VM's Express server ────────────────────────────────
-Environment="BOT_URL=http://BOT_VM_IP:3000"
+Environment="BOT_URL=http://naic-bot.chocorot.net"
 # ──────────────────────────────────────────────────────────────────────
 ExecStart=/opt/vm-scripts/preemption-watcher.sh
 Restart=on-failure

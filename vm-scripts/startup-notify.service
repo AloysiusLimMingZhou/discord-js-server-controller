@@ -7,7 +7,7 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 # ── URL of the bot VM's Express server ────────────────────────────────
-Environment="BOT_URL=http://BOT_VM_IP:3000"
+Environment="BOT_URL=http://naic-bot.chocorot.net"
 # ──────────────────────────────────────────────────────────────────────
 ExecStart=/opt/vm-scripts/startup-notify.sh
 StandardOutput=journal

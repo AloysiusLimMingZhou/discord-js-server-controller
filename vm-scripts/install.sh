@@ -4,7 +4,7 @@
 # ============================================================================
 #  Run this script ONCE on the target VM (AI server) (as root or with sudo):
 #
-#    sudo bash install.sh --bot-url http://<BOT_VM_IP>:<PORT>
+#    sudo bash install.sh --bot-url http://naic-bot.chocorot.net
 #
 #  What it does:
 #   1. Copies the shell scripts to /opt/vm-scripts/
@@ -44,7 +44,7 @@ show_help() {
 install.sh — Deploy VM notification scripts onto the target VM (AI server)
 
 Usage:
-  sudo bash install.sh --bot-url http://<BOT_VM_IP>:<PORT>  [--install-dir DIR]
+  sudo bash install.sh --bot-url http://naic-bot.chocorot.net  [--install-dir DIR]
 
 Options:
   --bot-url     URL of the bot VM's Express server (required)
@@ -114,17 +114,9 @@ systemctl daemon-reload
 
 for svc in startup-notify shutdown-notify preemption-watcher; do
   systemctl enable "${svc}.service"
-  ok "Enabled ${svc}.service"
+  systemctl restart "${svc}.service"
+  ok "Enabled and (re)started ${svc}.service"
 done
-
-# Start the preemption watcher right now (it's a long-running daemon).
-systemctl start preemption-watcher.service
-ok "Started preemption-watcher.service"
-
-# Start the shutdown-notify service (RemainAfterExit oneshot — sits "active"
-# until the system shuts down, then ExecStop fires the notification).
-systemctl start shutdown-notify.service
-ok "Started shutdown-notify.service"
 
 # startup-notify is a oneshot service — it already ran on this boot.
 # It will fire automatically on the next reboot.

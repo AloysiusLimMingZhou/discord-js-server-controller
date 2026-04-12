@@ -81,7 +81,7 @@ A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you
 │  /vm-start      │   │        Hosts the Discord Bot              │
 │  /vm-stop       │   │                                           │
 │  /vm-status     │   │  ┌───────────────────┐  ┌──────────────┐  │
-└────────┬────────┘   │  │ Discord.js Client │  │ Express :3000│  │
+└────────┬────────┘   │  │ Discord.js Client │  │ Express (Web)│  │
          │            │  │ (bot/bot.js)      │◄─│ /notify/*    │  │
          └───────────►│  │                   │  │ /monitor/*   │  │
                       │  └──────┬────────────┘  └──────────────┘  │
@@ -92,7 +92,6 @@ A Discord bot built with [Discord.js v14](https://discord.js.org/) that lets you
                       │  │ (vmService.js)    │  │ Service      │  │
                       │  │ start/stop/status │  │ CPU/GPU      │  │
                       │  └──────┬────────────┘  │ alerts       │  │
-                      │         │               └──────────────┘  │
                       └─────────┼──────────────────────────────────┘
                                 │ @google-cloud/compute
                                 ▼
@@ -204,7 +203,7 @@ Edit `.env` and fill in every value:
 | `GCP_ZONE` | ✅ | Zone of the G2 VM (e.g. `asia-southeast1-c`) |
 | `GCP_INSTANCE_NAME` | ✅ | Name of the G2 Compute Engine VM instance |
 | `SA_KEY` | ✅ | Path to a GCP service account key JSON file |
-| `EXPRESS_PORT` | ✅ | Port for the Express server (default: `3000`) |
+| `EXPRESS_PORT` | ✅ | Port for the Express server (e.g. `80`, `443`, or `3000`) |
 | `MONITOR_CPU_THRESHOLD` | ❌ | CPU % to trigger alert (default: `80`) |
 | `MONITOR_GPU_THRESHOLD` | ❌ | GPU % to trigger alert (default: `80`) |
 | `MONITOR_ALERT_COOLDOWN` | ❌ | Cooldown between repeated alerts in ms (default: `300000` = 5 min) |
@@ -249,8 +248,8 @@ npm start
 Expected output:
 
 ```
-🤖  Discord bot logged in as YourBot#1234
-🌐  Express server listening on port 3000
+🤖  Discord bot logged in as YourBot#1253
+🌐  Express server listening on port 80
 📡  Waiting for events from G2 server…
 ```
 
@@ -310,7 +309,7 @@ All three commands use deferred replies and colour-coded rich embeds. `/vm-start
 
 ## Express Notification API
 
-The Express server (default port `3000`) receives push events from the G2 ML training server and posts them to the Discord **#notifications** channel as rich embeds.
+The Express server receives push events from the G2 ML training server and posts them to the Discord **#notifications** channel as rich embeds.
 
 ### Endpoints
 
@@ -325,20 +324,20 @@ The Express server (default port `3000`) receives push events from the G2 ML tra
 
 ### Example Requests
 
-These would be called **from the G2 server** targeting the EC2 bot's IP:
+These would be called **from the G2 server** targeting the bot's URL:
 
 ```bash
-BOT_HOST="<ec2-ip-or-hostname>:3000"
+BOT_URL="http://naic-bot.chocorot.net"
 
 # Health check
-curl http://$BOT_HOST/health
+curl $BOT_URL/health
 
 # Lifecycle events
-curl -X POST http://$BOT_HOST/notify/started
-curl -X POST http://$BOT_HOST/notify/stopping
+curl -X POST $BOT_URL/notify/started
+curl -X POST $BOT_URL/notify/stopping
 
 # Custom event
-curl -X POST http://$BOT_HOST/notify/event \
+curl -X POST $BOT_URL/notify/event \
   -H "Content-Type: application/json" \
   -d '{"title": "Training Complete", "description": "Model v2.1 finished training in 4h 23m.", "color": 65280}'
 ```
@@ -359,8 +358,8 @@ The G2 ML training server sends lifecycle events and resource metrics to the bot
 | G2 boots (any method) | `startup-notify.service` → `POST /notify/started` | "G2 Server Started" embed |
 | G2 shuts down (any method) | `shutdown-notify.service` → `POST /notify/stopping` | "G2 Server Stopping" embed |
 | GCP preempts G2 (Spot VM) | `preemption-watcher.service` → `POST /notify/stopping` | "G2 Server Stopping" embed (early warning) |
-| CPU is high (cron on G2) | `POST /monitor/cpu` to EC2 bot | "High CPU Utilization" alert |
-| GPU is high (cron on G2) | `POST /monitor/gpu` to EC2 bot | "High GPU Utilization" alert |
+| CPU is high (cron on G2) | `POST /monitor/cpu` to bot | "High CPU Utilization" alert |
+| GPU is high (cron on G2) | `POST /monitor/gpu` to bot | "High GPU Utilization" alert |
 
 ### CPU / GPU Utilization Alerts
 
@@ -383,16 +382,16 @@ Alerts respect a **cooldown window** (default: 5 minutes) to prevent notificatio
 
 ### Monitoring Example Requests
 
-All examples below are run **from the G2 server**, targeting the EC2 bot:
+All examples below are run **from the G2 server**, targeting the bot:
 
 ```bash
-BOT_HOST="<ec2-ip-or-hostname>:3000"
+BOT_URL="http://naic-bot.chocorot.net"
 ```
 
 **Report CPU utilization:**
 
 ```bash
-curl -X POST http://$BOT_HOST/monitor/cpu \
+curl -X POST $BOT_URL/monitor/cpu \
   -H "Content-Type: application/json" \
   -d '{"utilization": 87.3}'
 # → { "success": true, "alerted": true, "utilization": 87.3, "threshold": 80 }
@@ -401,7 +400,7 @@ curl -X POST http://$BOT_HOST/monitor/cpu \
 **Report GPU utilization:**
 
 ```bash
-curl -X POST http://$BOT_HOST/monitor/gpu \
+curl -X POST $BOT_URL/monitor/gpu \
   -H "Content-Type: application/json" \
   -d '{"utilization": 95.8, "gpuName": "nvidia-l4"}'
 # → { "success": true, "alerted": true, "utilization": 95.8, "threshold": 80 }
@@ -410,7 +409,7 @@ curl -X POST http://$BOT_HOST/monitor/gpu \
 **Check monitoring status:**
 
 ```bash
-curl http://$BOT_HOST/monitor/status
+curl $BOT_URL/monitor/status
 ```
 
 ### Setting Up the G2 Server to Push Events
@@ -436,7 +435,7 @@ gcloud compute scp --recurse vm-scripts/* G2_INSTANCE_NAME:vm-scripts/ --zone YO
 # SSH in and run the installer
 gcloud compute ssh G2_INSTANCE_NAME --zone YOUR_ZONE
 cd ~/vm-scripts
-sudo bash install.sh --bot-url http://BOT_VM_IP:3000
+sudo bash install.sh --bot-url http://naic-bot.chocorot.net
 ```
 
 #### 2. CPU Monitoring (cron on G2)
@@ -445,9 +444,9 @@ Create `/opt/scripts/report-cpu.sh` on the G2 server:
 
 ```bash
 #!/bin/bash
-BOT_HOST="<ec2-ip-or-hostname>:3000"
+BOT_URL="http://naic-bot.chocorot.net"
 CPU=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'.' -f1)
-curl -s -X POST http://$BOT_HOST/monitor/cpu \
+curl -s -X POST $BOT_URL/monitor/cpu \
   -H "Content-Type: application/json" \
   -d "{\"utilization\": $CPU}"
 ```
@@ -464,10 +463,10 @@ Create `/opt/scripts/report-gpu.sh` on the G2 server:
 
 ```bash
 #!/bin/bash
-BOT_HOST="<ec2-ip-or-hostname>:3000"
+BOT_URL="http://naic-bot.chocorot.net"
 GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1 | tr -d ' ')
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
-curl -s -X POST http://$BOT_HOST/monitor/gpu \
+curl -s -X POST $BOT_URL/monitor/gpu \
   -H "Content-Type: application/json" \
   -d "{\"utilization\": $GPU_UTIL, \"gpuName\": \"$GPU_NAME\"}"
 ```
