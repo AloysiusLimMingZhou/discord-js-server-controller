@@ -154,8 +154,8 @@ function formatDuration(ms) {
   return parts.join(' ');
 }
 
-client.once('ready', () => {
-  console.log(`🤖  Discord bot logged in as ${client.user.tag}`);
+client.once('clientReady', (c) => {
+  console.log(`🤖  Discord bot logged in as ${c.user.tag}`);
 });
 
 /**

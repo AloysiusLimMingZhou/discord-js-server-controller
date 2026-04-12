@@ -11,7 +11,7 @@ Conflicts=shutdown.target
 Type=oneshot
 RemainAfterExit=yes
 # ── URL of the bot VM's Express server ────────────────────────────────
-Environment="BOT_URL=http://naic-bot.chocorot.net"
+Environment="BOT_URL=https://naic-bot.chocorot.net"
 # ──────────────────────────────────────────────────────────────────────
 # ExecStart does nothing — the service "starts" immediately on boot.
 ExecStart=/bin/true

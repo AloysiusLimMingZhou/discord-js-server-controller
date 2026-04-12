@@ -29,7 +29,7 @@ set -euo pipefail
 # ─── Configuration ───────────────────────────────────────────────────────────
 # URL of the bot VM's Express server.
 # Override with the BOT_URL environment variable or set it via install.sh.
-BOT_URL="${BOT_URL:-http://naic-bot.chocorot.net}"
+BOT_URL="${BOT_URL:-https://naic-bot.chocorot.net}"
 
 METADATA_BASE="http://metadata.google.internal/computeMetadata/v1"
 METADATA_HEADER="Metadata-Flavor: Google"

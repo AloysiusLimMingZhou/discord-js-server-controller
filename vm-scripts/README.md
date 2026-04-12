@@ -76,7 +76,7 @@ gcloud compute ssh TARGET_VM_NAME --zone YOUR_ZONE
 
 # Inside the target VM (AI server):
 cd ~/vm-scripts
-sudo bash install.sh --bot-url http://naic-bot.chocorot.net
+sudo bash install.sh --bot-url https://naic-bot.chocorot.net
 ```
 
 That's it. The installer will:
@@ -118,7 +118,7 @@ sudo systemctl status shutdown-notify
 **Watcher exits immediately on start**
 Check that `BOT_URL` in the service file points to the correct bot VM address. Test reachability from the target VM (AI server):
 ```bash
-curl -X POST http://naic-bot.chocorot.net/notify/event \
+curl -X POST https://naic-bot.chocorot.net/notify/event \
   -H "Content-Type: application/json" \
   -d '{"title":"Test","description":"reachability test from target VM"}'
 ```
@@ -146,7 +146,7 @@ sudo systemctl start shutdown-notify
 **Manually test the preemption notification**
 (Does not actually preempt the target VM — only sends the HTTP request to the bot VM.)
 ```bash
-curl -X POST http://naic-bot.chocorot.net/notify/stopping \
+curl -X POST https://naic-bot.chocorot.net/notify/stopping \
   -H "Content-Type: application/json" \
   -d '{}'
 ```

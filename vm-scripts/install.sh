@@ -4,7 +4,7 @@
 # ============================================================================
 #  Run this script ONCE on the target VM (AI server) (as root or with sudo):
 #
-#    sudo bash install.sh --bot-url http://naic-bot.chocorot.net
+#    sudo bash install.sh --bot-url https://naic-bot.chocorot.net
 #
 #  What it does:
 #   1. Copies the shell scripts to /opt/vm-scripts/
@@ -44,7 +44,7 @@ show_help() {
 install.sh — Deploy VM notification scripts onto the target VM (AI server)
 
 Usage:
-  sudo bash install.sh --bot-url http://naic-bot.chocorot.net  [--install-dir DIR]
+  sudo bash install.sh --bot-url https://naic-bot.chocorot.net  [--install-dir DIR]
 
 Options:
   --bot-url     URL of the bot VM's Express server (required)

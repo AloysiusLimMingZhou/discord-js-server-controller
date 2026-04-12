@@ -327,7 +327,7 @@ The Express server receives push events from the G2 ML training server and posts
 These would be called **from the G2 server** targeting the bot's URL:
 
 ```bash
-BOT_URL="http://naic-bot.chocorot.net"
+BOT_URL="https://naic-bot.chocorot.net"
 
 # Health check
 curl $BOT_URL/health
@@ -385,7 +385,7 @@ Alerts respect a **cooldown window** (default: 5 minutes) to prevent notificatio
 All examples below are run **from the G2 server**, targeting the bot:
 
 ```bash
-BOT_URL="http://naic-bot.chocorot.net"
+BOT_URL="https://naic-bot.chocorot.net"
 ```
 
 **Report CPU utilization:**
@@ -435,7 +435,7 @@ gcloud compute scp --recurse vm-scripts/* G2_INSTANCE_NAME:vm-scripts/ --zone YO
 # SSH in and run the installer
 gcloud compute ssh G2_INSTANCE_NAME --zone YOUR_ZONE
 cd ~/vm-scripts
-sudo bash install.sh --bot-url http://naic-bot.chocorot.net
+sudo bash install.sh --bot-url https://naic-bot.chocorot.net
 ```
 
 #### 2. CPU Monitoring (cron on G2)
@@ -444,7 +444,7 @@ Create `/opt/scripts/report-cpu.sh` on the G2 server:
 
 ```bash
 #!/bin/bash
-BOT_URL="http://naic-bot.chocorot.net"
+BOT_URL="https://naic-bot.chocorot.net"
 CPU=$(top -bn1 | grep 'Cpu(s)' | awk '{print $2}' | cut -d'.' -f1)
 curl -s -X POST $BOT_URL/monitor/cpu \
   -H "Content-Type: application/json" \
@@ -463,7 +463,7 @@ Create `/opt/scripts/report-gpu.sh` on the G2 server:
 
 ```bash
 #!/bin/bash
-BOT_URL="http://naic-bot.chocorot.net"
+BOT_URL="https://naic-bot.chocorot.net"
 GPU_UTIL=$(nvidia-smi --query-gpu=utilization.gpu --format=csv,noheader,nounits | head -1 | tr -d ' ')
 GPU_NAME=$(nvidia-smi --query-gpu=name --format=csv,noheader | head -1)
 curl -s -X POST $BOT_URL/monitor/gpu \
