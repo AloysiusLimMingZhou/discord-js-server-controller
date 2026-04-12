@@ -32,6 +32,7 @@ jobs:
             --project='${{ secrets.GCP_PROJECT_ID }}' \
             --command='
               # START Deployment Script on your VM
+              set -e
               # Debug only
               echo "whoami: $(whoami)"
               echo "where: ${{ secrets.DEPLOY_PATH }}"
