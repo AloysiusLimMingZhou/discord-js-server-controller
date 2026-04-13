@@ -1,5 +1,7 @@
 const express = require('express');
 const { sendNotification } = require('../bot/bot');
+const { updateVMMode } = require('../services/schedulerService');
+
 
 const app = express();
 app.use(express.json());
@@ -22,7 +24,9 @@ app.post('/notify/started', async (_req, res) => {
       description: 'The G2 ML training server is now **running** and ready to accept connections.',
       color: 0x00c853,
     });
+    updateVMMode('RUNNING');
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -36,7 +40,9 @@ app.post('/notify/stopped', async (_req, res) => {
       description: 'The G2 ML training server has been **stopped**.',
       color: 0xd50000,
     });
+    updateVMMode('TERMINATED');
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -50,7 +56,9 @@ app.post('/notify/stopping', async (_req, res) => {
       description: 'The G2 ML training server is **shutting down**. It will be unavailable shortly.',
       color: 0xff6d00,
     });
+    updateVMMode('TERMINATED');
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });
@@ -64,7 +72,9 @@ app.post('/notify/starting', async (_req, res) => {
       description: 'The G2 ML training server is **booting up**. Please wait…',
       color: 0x2979ff,
     });
+    updateVMMode('RUNNING');
     res.json({ success: true });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: err.message });

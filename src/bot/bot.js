@@ -1,6 +1,8 @@
 const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
 const config = require('../config');
 const { startVM, stopVM, getVMStatus } = require('../services/vmService');
+const { initScheduler, updateVMMode } = require('../services/schedulerService');
+
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds],
@@ -49,7 +51,11 @@ client.on('interactionCreate', async (interaction) => {
         .setTimestamp();
 
       await interaction.editReply({ embeds: [embed] });
+      
+      // Update scheduler mode based on status
+      updateVMMode(info.status);
     } catch (err) {
+
       console.error(err);
       await interaction.editReply(`❌  Failed to get VM status: ${err.message}`);
     }
@@ -81,6 +87,10 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(0x00c853)
         .setTimestamp();
       await interaction.followUp({ embeds: [doneEmbed] });
+      
+      // Update scheduler mode to Started
+      updateVMMode('RUNNING');
+
 
       // Notify the notifications channel that the server has started
       await sendNotification({
@@ -120,6 +130,10 @@ client.on('interactionCreate', async (interaction) => {
         .setColor(0xd50000)
         .setTimestamp();
       await interaction.followUp({ embeds: [doneEmbed] });
+      
+      // Update scheduler mode to Idle
+      updateVMMode('TERMINATED'); // Or STOPPED, scheduler checks if it's RUNNING
+
 
       // Notify the notifications channel that the server has stopped
       await sendNotification({
@@ -154,9 +168,22 @@ function formatDuration(ms) {
   return parts.join(' ');
 }
 
-client.once('clientReady', (c) => {
+client.once('ready', async (c) => {
   console.log(`🤖  Discord bot logged in as ${c.user.tag}`);
+  
+  // Initialize scheduler
+  initScheduler(sendNotification);
+  
+  // Initial check of VM status to set the correct mode
+  try {
+    const info = await getVMStatus();
+    updateVMMode(info.status);
+    console.log(`🔍  Initial VM status: ${info.status}`);
+  } catch (err) {
+    console.error('❌  Failed to perform initial VM status check:', err);
+  }
 });
+
 
 /**
  * Send a rich-embed notification to the configured notifications channel.
