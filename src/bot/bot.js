@@ -55,9 +55,13 @@ client.on('interactionCreate', async (interaction) => {
       // Update scheduler mode based on status
       updateVMMode(info.status);
     } catch (err) {
-
       console.error(err);
-      await interaction.editReply(`❌  Failed to get VM status: ${err.message}`);
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌  Failed to get VM status')
+        .setDescription(err.message)
+        .setColor(0xd50000)
+        .setTimestamp();
+      await interaction.editReply({ embeds: [errorEmbed] });
     }
   }
 
@@ -100,7 +104,12 @@ client.on('interactionCreate', async (interaction) => {
       });
     } catch (err) {
       console.error(err);
-      await interaction.followUp(`❌  Failed to start VM: ${err.message}`);
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌  Failed to start VM')
+        .setDescription(err.message)
+        .setColor(0xd50000)
+        .setTimestamp();
+      await interaction.followUp({ embeds: [errorEmbed] });
       
       // Notify the notifications channel that the start failed
       await sendNotification({
@@ -150,7 +159,12 @@ client.on('interactionCreate', async (interaction) => {
       });
     } catch (err) {
       console.error(err);
-      await interaction.followUp(`❌  Failed to stop VM: ${err.message}`);
+      const errorEmbed = new EmbedBuilder()
+        .setTitle('❌  Failed to stop VM')
+        .setDescription(err.message)
+        .setColor(0xd50000)
+        .setTimestamp();
+      await interaction.followUp({ embeds: [errorEmbed] });
 
       // Notify the notifications channel that the stop failed
       await sendNotification({
