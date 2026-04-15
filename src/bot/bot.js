@@ -101,6 +101,13 @@ client.on('interactionCreate', async (interaction) => {
     } catch (err) {
       console.error(err);
       await interaction.followUp(`❌  Failed to start VM: ${err.message}`);
+      
+      // Notify the notifications channel that the start failed
+      await sendNotification({
+        title: '❌  G2 Server Start Failed',
+        description: `Failed to start the VM instance.\n**Error:** ${err.message}\nTriggered by **${interaction.user.tag}**.`,
+        color: 0xd50000,
+      });
     }
   }
 
@@ -144,6 +151,13 @@ client.on('interactionCreate', async (interaction) => {
     } catch (err) {
       console.error(err);
       await interaction.followUp(`❌  Failed to stop VM: ${err.message}`);
+
+      // Notify the notifications channel that the stop failed
+      await sendNotification({
+        title: '❌  G2 Server Stop Failed',
+        description: `Failed to stop the VM instance.\n**Error:** ${err.message}\nTriggered by **${interaction.user.tag}**.`,
+        color: 0xd50000,
+      });
     }
   }
 });

@@ -26,6 +26,14 @@ async function startVM() {
     });
   }
 
+  // Check for errors in the completed operation
+  if (operation.error) {
+    const errorMsg = operation.error.errors
+      .map((e) => `${e.code}: ${e.message}`)
+      .join('\n');
+    throw new Error(errorMsg);
+  }
+
   return 'VM instance started successfully.';
 }
 
@@ -49,6 +57,14 @@ async function stopVM() {
       zone: config.gcp.zone,
       operation: operation.name,
     });
+  }
+
+  // Check for errors in the completed operation
+  if (operation.error) {
+    const errorMsg = operation.error.errors
+      .map((e) => `${e.code}: ${e.message}`)
+      .join('\n');
+    throw new Error(errorMsg);
   }
 
   return 'VM instance stopped successfully.';
