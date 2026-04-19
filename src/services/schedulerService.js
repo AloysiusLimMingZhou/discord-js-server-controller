@@ -95,16 +95,23 @@ async function sendStatusNotification() {
     };
 
     let description = `**Status:** ${info.status}\n**External IP:** ${info.externalIp}`;
+    let content = '';
     
     if (info.status === 'RUNNING' && info.lastStartTimestamp) {
         const uptimeMs = Date.now() - new Date(info.lastStartTimestamp).getTime();
         description += `\n**Uptime:** ${formatDuration(uptimeMs)}`;
+
+        // Tag @everyone if uptime is over 6 hours (21,600,000 ms)
+        if (uptimeMs > 6 * 60 * 60 * 1000) {
+            content = '@everyone';
+        }
     }
 
     await notificationCallback({
       title: '📊  Scheduled VM Status Update',
       description,
       color: STATUS_COLORS[info.status] ?? 0x607d8b,
+      content,
     });
   } catch (err) {
     console.error('❌  Failed to send scheduled notification:', err);

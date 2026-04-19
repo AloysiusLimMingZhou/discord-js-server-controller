@@ -219,7 +219,7 @@ client.once('ready', async (c) => {
  *  - Slash command handlers (when a user starts/stops the VM via Discord)
  *  - Express endpoints (when the G2 server pushes lifecycle/metric events)
  */
-async function sendNotification({ title, description, color = 0x607d8b }) {
+async function sendNotification({ title, description, color = 0x607d8b, content = '' }) {
   const channel = await client.channels.fetch(config.discord.channelId);
   if (!channel) throw new Error('Notification channel not found.');
 
@@ -229,7 +229,7 @@ async function sendNotification({ title, description, color = 0x607d8b }) {
     .setColor(color)
     .setTimestamp();
 
-  await channel.send({ embeds: [embed] });
+  await channel.send({ content, embeds: [embed] });
 }
 
 module.exports = { client, sendNotification };
