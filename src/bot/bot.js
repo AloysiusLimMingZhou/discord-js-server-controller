@@ -1,7 +1,10 @@
-const { Client, GatewayIntentBits, EmbedBuilder } = require('discord.js');
+const { Client, GatewayIntentBits, EmbedBuilder, ActionRowBuilder, ButtonBuilder, ButtonStyle } = require('discord.js');
 const config = require('../config');
 const { startVM, stopVM, getVMStatus } = require('../services/vmService');
 const { initScheduler, updateVMMode } = require('../services/schedulerService');
+
+// Track active retry jobs
+const activeRetries = new Map();
 
 
 const client = new Client({
@@ -22,6 +25,24 @@ const STATUS_COLORS = {
 
 // ─── Interaction handler ────────────────────────────────────────────
 client.on('interactionCreate', async (interaction) => {
+  if (interaction.isButton()) {
+    if (interaction.customId === 'stop-vm-retry') {
+      const retryId = `${interaction.guildId}-${config.gcp.instanceName}`;
+      if (activeRetries.has(retryId)) {
+        activeRetries.delete(retryId);
+        const embed = new EmbedBuilder()
+          .setTitle('🛑  Retry Cancelled')
+          .setDescription('The VM start retry job has been stopped manually.')
+          .setColor(0xd50000)
+          .setTimestamp();
+        await interaction.update({ embeds: [embed], components: [] });
+      } else {
+        await interaction.reply({ content: 'No active retry job found to stop.', ephemeral: true });
+      }
+    }
+    return;
+  }
+
   if (!interaction.isChatInputCommand()) return;
 
   const { commandName } = interaction;
@@ -67,14 +88,35 @@ client.on('interactionCreate', async (interaction) => {
 
   // ── /vm-start ───────────────────────────────────────────────────
   if (commandName === 'vm-start') {
+    const shouldRetry = interaction.options.getBoolean('retry') ?? false;
+    const retryId = `${interaction.guildId}-${config.gcp.instanceName}`;
+
     await interaction.deferReply();
+    
+    if (shouldRetry && activeRetries.has(retryId)) {
+      return interaction.editReply('A retry job is already running for this VM.');
+    }
+
     try {
       const embed = new EmbedBuilder()
         .setTitle('🚀  Starting VM…')
         .setDescription('Sending start request to Google Cloud.')
         .setColor(0x2979ff)
         .setTimestamp();
-      await interaction.editReply({ embeds: [embed] });
+      
+      const components = [];
+      if (shouldRetry) {
+        embed.setFooter({ text: 'Retry mode enabled' });
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setCustomId('stop-vm-retry')
+            .setLabel('Stop Retry')
+            .setStyle(ButtonStyle.Danger)
+        );
+        components.push(row);
+      }
+
+      await interaction.editReply({ embeds: [embed], components });
 
       // Notify the notifications channel that the server is starting
       await sendNotification({
@@ -83,25 +125,78 @@ client.on('interactionCreate', async (interaction) => {
         color: 0x2979ff,
       });
 
-      const msg = await startVM();
+      if (shouldRetry) {
+        activeRetries.set(retryId, true);
+        let attempts = 0;
+        
+        while (activeRetries.has(retryId)) {
+          attempts++;
+          try {
+            const msg = await startVM();
+            activeRetries.delete(retryId);
 
-      const doneEmbed = new EmbedBuilder()
-        .setTitle('✅  VM Started')
-        .setDescription(msg)
-        .setColor(0x00c853)
-        .setTimestamp();
-      await interaction.followUp({ embeds: [doneEmbed] });
-      
-      // Update scheduler mode to Started
-      updateVMMode('RUNNING');
+            const doneEmbed = new EmbedBuilder()
+              .setTitle('✅  VM Started')
+              .setDescription(msg)
+              .setColor(0x00c853)
+              .setTimestamp();
+            await interaction.editReply({ embeds: [doneEmbed], components: [] });
+            
+            updateVMMode('RUNNING');
 
+            await sendNotification({
+              title: '✅  G2 Server Started',
+              description: `The G2 ML training server is now **running**.\nStarted after ${attempts} attempt(s) by **${interaction.user.tag}**.`,
+              color: 0x00c853,
+            });
+            break;
+          } catch (err) {
+            const isResourceError = err.message.includes('ZONE_RESOURCE_POOL_EXHAUSTED_WITH_DETAILS');
+            
+            if (isResourceError && activeRetries.has(retryId)) {
+              console.log(`[Retry] Attempt ${attempts} failed: Resource exhaustion. Retrying in 1 minute...`);
+              
+              const retryEmbed = new EmbedBuilder()
+                .setTitle('⏳  Retrying VM Start…')
+                .setDescription(`Attempt **#${attempts}** failed: Zone resource pool exhausted.\nWaiting 1 minute before next attempt...`)
+                .setColor(0xffab00)
+                .setFooter({ text: 'Keep retrying is ACTIVE' })
+                .setTimestamp();
+              
+              await interaction.editReply({ embeds: [retryEmbed] });
 
-      // Notify the notifications channel that the server has started
-      await sendNotification({
-        title: '✅  G2 Server Started',
-        description: `The G2 ML training server is now **running** and ready to accept connections.\nStarted by **${interaction.user.tag}** via Discord.`,
-        color: 0x00c853,
-      });
+              await sendNotification({
+                title: '⚠️  G2 Server Start Retrying',
+                description: `Attempt **#${attempts}** failed: Zone resource pool exhausted.\nRetrying automatically...`,
+                color: 0xffab00,
+              });
+
+              // Wait 1 minute
+              await new Promise(resolve => setTimeout(resolve, 60000));
+            } else {
+              activeRetries.delete(retryId);
+              throw err; // Re-throw if it's a different error or we stopped retrying
+            }
+          }
+        }
+      } else {
+        // Normal non-retry start
+        const msg = await startVM();
+        const doneEmbed = new EmbedBuilder()
+          .setTitle('✅  VM Started')
+          .setDescription(msg)
+          .setColor(0x00c853)
+          .setTimestamp();
+        await interaction.editReply({ embeds: [doneEmbed] });
+        
+        updateVMMode('RUNNING');
+
+        await sendNotification({
+          title: '✅  G2 Server Started',
+          description: `The G2 ML training server is now **running** and ready to accept connections.\nStarted by **${interaction.user.tag}** via Discord.`,
+          color: 0x00c853,
+        });
+      }
     } catch (err) {
       console.error(err);
       const errorEmbed = new EmbedBuilder()
@@ -109,9 +204,13 @@ client.on('interactionCreate', async (interaction) => {
         .setDescription(err.message)
         .setColor(0xd50000)
         .setTimestamp();
-      await interaction.followUp({ embeds: [errorEmbed] });
       
-      // Notify the notifications channel that the start failed
+      if (interaction.deferred || interaction.replied) {
+        await interaction.editReply({ embeds: [errorEmbed], components: [] });
+      } else {
+        await interaction.reply({ embeds: [errorEmbed] });
+      }
+      
       await sendNotification({
         title: '❌  G2 Server Start Failed',
         description: `Failed to start the VM instance.\n**Error:** ${err.message}\nTriggered by **${interaction.user.tag}**.`,

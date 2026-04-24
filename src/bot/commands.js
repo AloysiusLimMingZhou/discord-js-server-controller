@@ -3,7 +3,11 @@ const { SlashCommandBuilder } = require('discord.js');
 const commands = [
   new SlashCommandBuilder()
     .setName('vm-start')
-    .setDescription('Start the Google Cloud VM instance'),
+    .setDescription('Start the Google Cloud VM instance')
+    .addBooleanOption(option =>
+      option.setName('retry')
+        .setDescription('Keep retrying if the zone is out of resources')
+        .setRequired(false)),
 
   new SlashCommandBuilder()
     .setName('vm-stop')
